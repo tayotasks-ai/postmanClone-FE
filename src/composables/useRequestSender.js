@@ -30,29 +30,65 @@ export function useRequestSender() {
 
   function tryRunScript(code, context = {}) {
     try {
+      const env = store.activeEnv
+
       const pm = {
         environment: {
           set: (k, v) => {
-            if (!store.activeEnv) return
-            const vr = store.activeEnv.vars.find(x => x.key === k)
-            if (vr) vr.value = v
-            else store.activeEnv.vars.push({ key: k, value: v })
+            if (!env) return
+            const vr = env.vars.find(x => x.key === k)
+            if (vr) vr.value = String(v)
+            else env.vars.push({ key: String(k), value: String(v) })
           },
-          get: (k) => {
-            const v = store.activeEnv?.vars.find(x => x.key === k)
-            return v?.value
+          get: (k) => env?.vars.find(x => x.key === k)?.value,
+          unset: (k) => {
+            if (!env) return
+            env.vars = env.vars.filter(x => x.key !== k)
           },
         },
-        response: context,
+        variables: {
+          get: (k) => env?.vars.find(x => x.key === k)?.value,
+          set: (k, v) => {
+            if (!env) return
+            const vr = env.vars.find(x => x.key === k)
+            if (vr) vr.value = String(v)
+            else env.vars.push({ key: String(k), value: String(v) })
+          },
+        },
+        globals: { get: () => undefined, set: () => {} },
+        collectionVariables: { get: () => undefined, set: () => {} },
+        response: {
+          status: context.status,
+          code: context.status,
+          text: () => context.body || '',
+          json: () => {
+            try { return JSON.parse(context.body) }
+            catch { throw new Error('Response is not valid JSON') }
+          },
+          to: {
+            have: {
+              status: (expected) => {
+                if (context.status !== expected)
+                  throw new Error(`Expected status ${expected}, got ${context.status}`)
+              },
+            },
+          },
+        },
         test: (name, fn) => {
-          try { fn(); console.log('✅', name) }
-          catch (e) { console.error('❌', name, e.message) }
+          try { fn(); console.log('✅ Test passed:', name) }
+          catch (e) { console.error('❌ Test failed:', name, e.message) }
         },
+        expect: (val) => ({
+          to: { equal: (exp) => { if (val !== exp) throw new Error(`Expected ${exp}, got ${val}`) } }
+        }),
       }
       // eslint-disable-next-line no-new-func
       new Function('pm', code)(pm)
+      return { pm }
     } catch (e) {
       console.warn('Script error:', e)
+      store.showToast('Script error: ' + e.message, 'error')
+      return {}
     }
   }
 
@@ -62,8 +98,19 @@ export function useRequestSender() {
     // Pre-request script
     if (req.preScript) tryRunScript(req.preScript)
 
-    const url = store.interpolate(req.url)
-    const method = req.method
+    let url = store.interpolate(req.url)
+
+    // Warn if variables were not resolved
+    const unresolved = [...url.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1])
+    if (unresolved.length > 0) {
+      store.showToast(`Unresolved variables: ${unresolved.map(v => `{{${v}}}`).join(', ')} — select an environment that defines them.`, 'error')
+      return
+    }
+
+    // Ensure absolute URL — relative URLs silently hit the app's own domain
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url
+    }
 
     // Build headers
     const headers = {}
@@ -137,7 +184,13 @@ export function useRequestSender() {
         statusClass: res.status < 300 ? 's2xx' : res.status < 400 ? 's3xx' : res.status < 500 ? 's4xx' : 's5xx',
       }
 
-      if (req.postScript) tryRunScript(req.postScript, { status: res.status, body: text })
+      if (req.postScript) {
+        tryRunScript(req.postScript, { status: res.status, body: text })
+        // Persist env changes back to server
+        if (store.activeEnv) {
+          store.saveEnvironment(store.activeEnv._id, { vars: store.activeEnv.vars }).catch(() => {})
+        }
+      }
     } catch (err) {
       store.response = {
         loading: false,

@@ -54,9 +54,21 @@ export function useRequestSender() {
             if (vr) vr.value = String(v)
             else env.vars.push({ key: String(k), value: String(v) })
           },
+          unset: (k) => { if (env) env.vars = env.vars.filter(x => x.key !== k) },
         },
         globals: { get: () => undefined, set: () => {} },
-        collectionVariables: { get: () => undefined, set: () => {} },
+        // collectionVariables also writes to the active env (mirrors Postman behaviour
+        // when you import a collection and run it with a linked environment)
+        collectionVariables: {
+          get: (k) => env?.vars.find(x => x.key === k)?.value,
+          set: (k, v) => {
+            if (!env) { console.warn('No active environment — cannot set collectionVariable', k); return }
+            const vr = env.vars.find(x => x.key === k)
+            if (vr) vr.value = String(v)
+            else env.vars.push({ key: String(k), value: String(v) })
+          },
+          unset: (k) => { if (env) env.vars = env.vars.filter(x => x.key !== k) },
+        },
         response: {
           status: context.status,
           code: context.status,

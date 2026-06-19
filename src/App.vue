@@ -180,7 +180,7 @@ function onImportFile(e) {
   const file = e.target.files[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = (ev) => { importText.value = ev.target.result; doImport() }
+  reader.onload = (ev) => { importText.value = ev.target.result }
   reader.readAsText(file)
 }
 
@@ -223,6 +223,12 @@ async function doImport() {
       await store.saveRequest({ ...r, id: null, colMongoId: col._id })
     }
     store.showToast(`Imported "${colName}" — ${requests.length} requests`)
+
+    if (data.variable && Array.isArray(data.variable) && data.variable.length > 0) {
+      const vars = data.variable.map(v => ({ key: String(v.key || ''), value: String(v.value || '') }))
+      await store.createEnvironment(`${colName} Variables`, vars)
+      store.showToast(`Imported ${data.variable.length} collection variables as a new environment.`)
+    }
     importModal.value = false
     importText.value = ''
   } catch (e) {

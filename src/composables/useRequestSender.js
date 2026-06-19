@@ -1,5 +1,9 @@
 import { useRelayStore } from '../stores/relay.js'
 
+const PROXY = import.meta.env.PROD
+  ? 'https://postmanclone-be.onrender.com/api/proxy'
+  : '/api/proxy'
+
 export function useRequestSender() {
   const store = useRelayStore()
 
@@ -113,7 +117,7 @@ export function useRequestSender() {
     let url = store.interpolate(req.url)
 
     // Warn if variables were not resolved
-    const unresolved = [...url.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1])
+    const unresolved = [...url.matchAll(/\{\{([\w-]+)\}\}/g)].map(m => m[1])
     if (unresolved.length > 0) {
       store.showToast(`Unresolved variables: ${unresolved.map(v => `{{${v}}}`).join(', ')} — select an environment that defines them.`, 'error')
       return
@@ -121,6 +125,10 @@ export function useRequestSender() {
 
     // Ensure absolute URL — relative URLs silently hit the app's own domain
     if (!/^https?:\/\//i.test(url)) {
+      if (!url || url.startsWith('/')) {
+        store.showToast('URL resolved to an empty or relative path — check that your environment variables have values filled in.', 'error')
+        return
+      }
       url = 'https://' + url
     }
 
@@ -167,17 +175,27 @@ export function useRequestSender() {
     const start = Date.now()
 
     try {
-      const fetchOpts = { method, headers }
-      if (body !== undefined) fetchOpts.body = body
-      const res = await fetch(url, fetchOpts)
+      // Route through backend proxy to avoid browser CORS restrictions
+      const proxyRes = await fetch(PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, method, headers, body }),
+      })
+      const data = await proxyRes.json()
       const elapsed = Date.now() - start
 
-      const contentType = res.headers.get('content-type') || ''
-      const text = await res.text()
-      const resHeaders = {}
-      res.headers.forEach((v, k) => { resHeaders[k] = v })
-      const size = new Blob([text]).size
+      if (data.error && data.status === 0) {
+        store.response = {
+          loading: false,
+          error: data.error,
+          time: elapsed,
+          statusClass: 's5xx',
+        }
+        return
+      }
 
+      const text = data.body || ''
+      const contentType = data.headers?.['content-type'] || ''
       let bodyHtml = escHtml(text)
       if (contentType.includes('json')) {
         try { bodyHtml = syntaxHighlight(JSON.stringify(JSON.parse(text), null, 2)) } catch {}
@@ -185,20 +203,19 @@ export function useRequestSender() {
 
       store.response = {
         loading: false,
-        status: res.status,
-        statusText: res.statusText,
-        headers: resHeaders,
+        status: data.status,
+        statusText: data.statusText,
+        headers: data.headers || {},
         rawBody: text,
         bodyHtml,
         time: elapsed,
-        size: formatBytes(size),
+        size: formatBytes(new Blob([text]).size),
         contentType,
-        statusClass: res.status < 300 ? 's2xx' : res.status < 400 ? 's3xx' : res.status < 500 ? 's4xx' : 's5xx',
+        statusClass: data.status < 300 ? 's2xx' : data.status < 400 ? 's3xx' : data.status < 500 ? 's4xx' : 's5xx',
       }
 
       if (req.postScript) {
-        tryRunScript(req.postScript, { status: res.status, body: text })
-        // Persist env changes back to server
+        tryRunScript(req.postScript, { status: data.status, body: text })
         if (store.activeEnv) {
           store.saveEnvironment(store.activeEnv._id, { vars: store.activeEnv.vars }).catch(() => {})
         }

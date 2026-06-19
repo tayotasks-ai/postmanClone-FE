@@ -206,7 +206,7 @@ export const useRelayStore = defineStore('relay', () => {
   // Variable interpolation
   function interpolate(str) {
     if (!activeEnv.value || !str) return str
-    return str.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    return str.replace(/\{\{([\w-]+)\}\}/g, (_, key) => {
       const v = activeEnv.value.vars.find(v => v.key === key)
       return v ? v.value : `{{${key}}}`
     })

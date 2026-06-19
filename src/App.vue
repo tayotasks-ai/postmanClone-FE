@@ -49,6 +49,14 @@
 
     <!-- ── MODALS ──────────────────────────────── -->
     <Transition name="fade">
+      <PromptModal v-if="store.promptConfig" />
+    </Transition>
+
+    <Transition name="fade">
+      <ConfirmModal v-if="store.confirmConfig" />
+    </Transition>
+
+    <Transition name="fade">
       <EnvironmentModal v-if="envModal" @close="envModal = false" />
     </Transition>
 
@@ -93,6 +101,8 @@ import RequestWorkspace from './components/RequestWorkspace.vue'
 import ResponsePanel from './components/ResponsePanel.vue'
 import EnvironmentModal from './components/EnvironmentModal.vue'
 import SaveRequestModal from './components/SaveRequestModal.vue'
+import PromptModal from './components/PromptModal.vue'
+import ConfirmModal from './components/ConfirmModal.vue'
 
 const store = useRelayStore()
 

@@ -95,24 +95,24 @@ async function addRequest(col) {
 }
 
 async function newCol() {
-  const name = prompt('Collection name:')
+  const name = await store.showPrompt('Collection name:')
   if (!name?.trim()) return
   await store.createCollection(name.trim())
 }
 
 async function renameCol(col) {
-  const name = prompt('New name:', col.name)
+  const name = await store.showPrompt('New name:', col.name)
   if (!name?.trim() || name === col.name) return
   await store.renameCollection(col._id, name.trim())
 }
 
 async function deleteCol(col) {
-  if (!confirm(`Delete "${col.name}" and all its requests?`)) return
+  if (!(await store.showConfirm('Delete Collection', `Delete "${col.name}" and all its requests?`))) return
   await store.deleteCollection(col._id)
 }
 
 async function delReq(col, req) {
-  if (!confirm(`Delete "${req.name}"?`)) return
+  if (!(await store.showConfirm('Delete Request', `Delete "${req.name}"?`))) return
   await store.deleteRequest(col._id, req.id)
 }
 </script>

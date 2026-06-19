@@ -9,6 +9,8 @@ export const useRelayStore = defineStore('relay', () => {
   const activeEnvId   = ref(null)
   const loading       = ref(false)
   const toast         = ref(null)
+  const promptConfig  = ref(null)
+  const confirmConfig = ref(null)
 
   // Active request being edited in the workspace
   const activeRequest = ref(null)   // { ...reqData, colId, colMongoId }
@@ -25,6 +27,19 @@ export const useRelayStore = defineStore('relay', () => {
     toast.value = { msg, type }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => (toast.value = null), 2800)
+  }
+
+  // ── Modals ─────────────────────────────────────────────
+  function showPrompt(title, initialValue = '') {
+    return new Promise(resolve => {
+      promptConfig.value = { title, initialValue, resolve }
+    })
+  }
+
+  function showConfirm(title, message) {
+    return new Promise(resolve => {
+      confirmConfig.value = { title, message, resolve }
+    })
   }
 
   // ── Bootstrap ──────────────────────────────────────────
@@ -169,8 +184,8 @@ export const useRelayStore = defineStore('relay', () => {
 
   return {
     collections, environments, activeEnvId, activeEnv,
-    loading, toast, activeRequest, response,
-    showToast, bootstrap,
+    loading, toast, activeRequest, response, promptConfig, confirmConfig,
+    showToast, showPrompt, showConfirm, bootstrap,
     createCollection, renameCollection, deleteCollection, toggleCollection, loadCollectionFull,
     openRequest, newBlankRequest, saveRequest, deleteRequest,
     createEnvironment, saveEnvironment, deleteEnvironment,

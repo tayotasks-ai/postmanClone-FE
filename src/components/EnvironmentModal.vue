@@ -66,7 +66,7 @@ watch(selectedId, (id) => {
 })
 
 async function createNew() {
-  const name = prompt('Environment name:')
+  const name = await store.showPrompt('Environment name:')
   if (!name?.trim()) return
   const env = await store.createEnvironment(name.trim())
   selectedId.value = env._id
@@ -78,7 +78,7 @@ async function save() {
 }
 
 async function delEnv() {
-  if (!editing.value || !confirm(`Delete "${editing.value.name}"?`)) return
+  if (!editing.value || !(await store.showConfirm('Delete Environment', `Delete "${editing.value.name}"?`))) return
   await store.deleteEnvironment(editing.value._id)
   selectedId.value = ''
   editing.value = null

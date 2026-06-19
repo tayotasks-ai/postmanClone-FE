@@ -1,5 +1,8 @@
 import { useRelayStore } from '../stores/relay.js'
 
+// Detect Electron runtime (set by electron/preload.cjs)
+const isElectron = typeof window !== 'undefined' && !!window.electronBridge
+
 const PROXY = import.meta.env.PROD
   ? 'https://postmanclone-be.onrender.com/api/proxy'
   : '/api/proxy'
@@ -111,6 +114,8 @@ export function useRequestSender() {
   async function sendRequest(req) {
     if (!req.url) { store.showToast('Enter a URL first', 'warn'); return }
 
+    const method = req.method || 'GET'
+
     // Pre-request script
     if (req.preScript) tryRunScript(req.preScript)
 
@@ -175,13 +180,19 @@ export function useRequestSender() {
     const start = Date.now()
 
     try {
-      // Route through backend proxy to avoid browser CORS restrictions
-      const proxyRes = await fetch(PROXY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, method, headers, body }),
-      })
-      const data = await proxyRes.json()
+      let data
+      if (typeof window !== 'undefined' && window.electronBridge) {
+        // In Electron: route through Node.js main process — zero CORS restrictions
+        data = await window.electronBridge.sendRequest({ url, method, headers, body })
+      } else {
+        // In browser: route through Render backend proxy
+        const proxyRes = await fetch(PROXY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, method, headers, body }),
+        })
+        data = await proxyRes.json()
+      }
       const elapsed = Date.now() - start
 
       if (data.error && data.status === 0) {
@@ -217,7 +228,7 @@ export function useRequestSender() {
       if (req.postScript) {
         tryRunScript(req.postScript, { status: data.status, body: text })
         if (store.activeEnv) {
-          store.saveEnvironment(store.activeEnv._id, { vars: store.activeEnv.vars }).catch(() => {})
+          store.saveEnvironment(store.activeEnv._id, store.activeEnv.name, store.activeEnv.vars).catch(() => {})
         }
       }
     } catch (err) {

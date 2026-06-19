@@ -59,7 +59,7 @@ export const useRelayStore = defineStore('relay', () => {
   // ── Collections ────────────────────────────────────────
   async function createCollection(name) {
     const col = await api.createCollection(name)
-    collections.value.unshift({ ...col, open: true })
+    collections.value.unshift({ ...col, open: true, loadedFull: true })
     showToast(`Collection "${name}" created`)
     return col
   }
@@ -83,9 +83,22 @@ export const useRelayStore = defineStore('relay', () => {
   }
 
   // ── Requests ───────────────────────────────────────────
-  function openRequest(colMongoId, reqData) {
+  async function openRequest(colMongoId, reqData) {
     activeRequest.value = { ...reqData, colMongoId }
     response.value = null
+
+    const col = collections.value.find(c => c._id === colMongoId)
+    if (col && !col.loadedFull) {
+      try {
+        const fullCol = await loadCollectionFull(colMongoId)
+        const found = fullCol.requests?.find(r => r.id === reqData.id)
+        if (found && activeRequest.value?.id === reqData.id) {
+          activeRequest.value = { ...found, colMongoId }
+        }
+      } catch (e) {
+        console.error('Failed to load full request body:', e)
+      }
+    }
   }
 
   function newBlankRequest(colMongoId) {
@@ -177,7 +190,9 @@ export const useRelayStore = defineStore('relay', () => {
   async function loadCollectionFull(colId) {
     const full = await api.getCollection(colId)
     const idx = collections.value.findIndex(c => c._id === colId)
-    if (idx !== -1) collections.value[idx] = { ...collections.value[idx], ...full }
+    if (idx !== -1) {
+      collections.value[idx] = { ...collections.value[idx], ...full, loadedFull: true }
+    }
     return full
   }
 

@@ -127,7 +127,7 @@ function colTree(col) {
 }
 
 async function toggle(col) {
-  if (!col.open && (!col.requests || !col.requests.length)) {
+  if (!col.open && !col.loadedFull) {
     await store.loadCollectionFull(col._id)
   }
   store.toggleCollection(col._id)

@@ -213,7 +213,18 @@ async function doImport() {
           else if (mode === 'urlencoded') bodyType = 'form'
         }
         const url = typeof r.url === 'string' ? r.url : r.url?.raw || ''
-        requests.push({ name: item.name, folder: prefix || '', method: r.method || 'GET', url, headers, params, body, bodyType, auth: { type: 'none' } })
+        let preScript = '', postScript = ''
+        if (item.event) {
+          for (const ev of item.event) {
+            if (ev.listen === 'prerequest' && ev.script?.exec) {
+              preScript = Array.isArray(ev.script.exec) ? ev.script.exec.join('\n') : ev.script.exec
+            } else if (ev.listen === 'test' && ev.script?.exec) {
+              postScript = Array.isArray(ev.script.exec) ? ev.script.exec.join('\n') : ev.script.exec
+            }
+          }
+        }
+        
+        requests.push({ name: item.name, folder: prefix || '', method: r.method || 'GET', url, headers, params, body, bodyType, preScript, postScript, auth: { type: 'none' } })
       }
     }
     processItems(data.item)

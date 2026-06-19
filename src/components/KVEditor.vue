@@ -15,8 +15,8 @@
           <td style="width:28px;text-align:center">
             <input type="checkbox" v-model="row.enabled" style="accent-color:var(--accent);cursor:pointer" />
           </td>
-          <td><input class="kv-input" :placeholder="keyPlaceholder" v-model="row.key" @input="emit('update:modelValue', toClean())" /></td>
-          <td><input class="kv-input" placeholder="Value" v-model="row.value" @input="emit('update:modelValue', toClean())" /></td>
+          <td><input class="kv-input" :placeholder="keyPlaceholder" v-model="row.key" :title="resolveTitle(row.key)" @input="emit('update:modelValue', toClean())" /></td>
+          <td><input class="kv-input" placeholder="Value" v-model="row.value" :title="resolveTitle(row.value)" @input="emit('update:modelValue', toClean())" /></td>
           <td v-if="showDesc"><input class="kv-input" placeholder="Description" v-model="row.desc" @input="emit('update:modelValue', toClean())" /></td>
           <td style="width:28px;text-align:center">
             <button class="del-btn" @click="remove(i)">✕</button>
@@ -30,6 +30,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useRelayStore } from '../stores/relay.js'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -38,6 +39,13 @@ const props = defineProps({
   showDesc: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:modelValue'])
+const store = useRelayStore()
+
+function resolveTitle(val) {
+  if (!val || !val.includes('{{')) return ''
+  const resolved = store.interpolate(val)
+  return resolved !== val ? resolved : ''
+}
 
 let counter = 0
 const mkId = () => ++counter

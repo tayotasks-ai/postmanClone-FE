@@ -9,6 +9,7 @@
         class="url-input"
         v-model="req.url"
         placeholder="https://api.example.com/v1/resource"
+        :title="store.interpolate(req.url)"
         @keydown.ctrl.enter="send"
         @keydown.meta.enter="send"
         @input="parseUrlParams"

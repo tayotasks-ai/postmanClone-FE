@@ -1,4 +1,4 @@
-const BASE = '/api'
+const BASE = import.meta.env.PROD ? 'https://postmanclone-be.onrender.com/api' : '/api'
 
 async function req(method, path, body) {
   const opts = {

@@ -187,11 +187,21 @@ function onImportFile(e) {
 async function doImport() {
   try {
     const data = JSON.parse(importText.value)
+
+    if (data._postman_variable_scope === 'environment') {
+      const vars = (data.values || []).filter(v => v.enabled !== false).map(v => ({ key: String(v.key || ''), value: String(v.value || '') }))
+      await store.createEnvironment(data.name || 'Imported Env', vars)
+      store.showToast(`Imported environment "${data.name}"`)
+      importModal.value = false
+      importText.value = ''
+      return
+    }
+
     const colName = data.info?.name || 'Imported Collection'
     const requests = []
     function processItems(items, prefix = '') {
       for (const item of items || []) {
-        if (item.item) { processItems(item.item, prefix + item.name + '/'); continue }
+        if (item.item) { processItems(item.item, prefix ? `${prefix}/${item.name}` : item.name); continue }
         if (!item.request) continue
         const r = item.request
         const headers = (r.header || []).map(h => ({ key: h.key, value: h.value, enabled: !h.disabled }))
@@ -203,7 +213,7 @@ async function doImport() {
           else if (mode === 'urlencoded') bodyType = 'form'
         }
         const url = typeof r.url === 'string' ? r.url : r.url?.raw || ''
-        requests.push({ name: prefix + item.name, method: r.method || 'GET', url, headers, params, body, bodyType, auth: { type: 'none' } })
+        requests.push({ name: item.name, folder: prefix || '', method: r.method || 'GET', url, headers, params, body, bodyType, auth: { type: 'none' } })
       }
     }
     processItems(data.item)

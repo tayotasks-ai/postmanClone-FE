@@ -20,17 +20,31 @@
           <span class="col-arrow" :class="{ rotated: col.open }">›</span>
           <span class="col-name truncate">{{ col.name }}</span>
           <div class="col-actions">
+            <button class="icon-btn" title="Add folder" @click.stop="addFolder(col)">+📁</button>
             <button class="icon-btn" title="Add request" @click.stop="addRequest(col)">+</button>
             <button class="icon-btn" title="Rename" @click.stop="renameCol(col)">✎</button>
             <button class="icon-btn danger" title="Delete" @click.stop="deleteCol(col)">✕</button>
           </div>
         </div>
 
-        <!-- Requests -->
+        <!-- Requests & Folders -->
         <div v-if="col.open" class="col-requests">
           <div v-if="!col.requests?.length" class="col-empty">No requests</div>
+          
+          <SidebarFolder
+            v-for="folder in colTree(col).children"
+            :key="folder.name"
+            :folder="folder"
+            :col="col"
+            :isActive="isActive"
+            @open-req="openReq($event.col, $event.req)"
+            @del-req="delReq($event.col, $event.req)"
+            @add-folder="handleAddFolder"
+            @del-folder="handleDelFolder"
+          />
+
           <div
-            v-for="req in filteredReqs(col)"
+            v-for="req in colTree(col).items"
             :key="req.id"
             class="req-row"
             :class="{ active: isActive(col, req) }"
@@ -53,6 +67,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRelayStore } from '../stores/relay.js'
+import SidebarFolder from './SidebarFolder.vue'
 
 const store = useRelayStore()
 const search = ref('')
@@ -70,8 +85,45 @@ function filteredReqs(col) {
   if (!search.value) return col.requests || []
   const q = search.value.toLowerCase()
   return (col.requests || []).filter(r =>
-    r.name.toLowerCase().includes(q) || r.url?.toLowerCase().includes(q)
+    r.name.toLowerCase().includes(q) || r.url?.toLowerCase().includes(q) || r.folder?.toLowerCase().includes(q)
   )
+}
+
+function buildTree(col) {
+  const requests = filteredReqs(col)
+  const root = { items: [], children: {} }
+  
+  for (const folder of col.folders || []) {
+    const parts = folder.split('/').filter(Boolean)
+    let current = root
+    let pathAcc = []
+    for (const p of parts) {
+      pathAcc.push(p)
+      if (!current.children[p]) current.children[p] = { name: p, path: pathAcc.join('/'), items: [], children: {} }
+      current = current.children[p]
+    }
+  }
+
+  for (const req of requests) {
+    if (!req.folder) {
+      root.items.push(req)
+    } else {
+      const parts = req.folder.split('/').filter(Boolean)
+      let current = root
+      let pathAcc = []
+      for (const p of parts) {
+        pathAcc.push(p)
+        if (!current.children[p]) current.children[p] = { name: p, path: pathAcc.join('/'), items: [], children: {} }
+        current = current.children[p]
+      }
+      current.items.push(req)
+    }
+  }
+  return root
+}
+
+function colTree(col) {
+  return buildTree(col)
 }
 
 async function toggle(col) {
@@ -92,6 +144,25 @@ function openReq(col, req) {
 async function addRequest(col) {
   if (!col.open) await toggle(col)
   store.newBlankRequest(col._id)
+}
+
+async function addFolder(col) {
+  if (!col.open) await toggle(col)
+  const name = await store.showPrompt('Folder name:')
+  if (!name?.trim()) return
+  await store.addFolder(col._id, name.trim())
+}
+
+async function handleAddFolder({ col, parentPath }) {
+  if (!col.open) await toggle(col)
+  const name = await store.showPrompt('Subfolder name:')
+  if (!name?.trim()) return
+  await store.addFolder(col._id, parentPath + '/' + name.trim())
+}
+
+async function handleDelFolder({ col, folderPath }) {
+  if (!(await store.showConfirm('Delete Folder', `Delete "${folderPath}" and all its contents?`))) return
+  await store.deleteFolder(col._id, folderPath)
 }
 
 async function newCol() {

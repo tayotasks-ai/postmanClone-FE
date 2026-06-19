@@ -7,6 +7,10 @@
         <input class="field-input" v-model="name" placeholder="Get Users" autofocus />
       </div>
       <div class="form-field">
+        <label class="form-label">Folder (optional)</label>
+        <input class="field-input" v-model="folder" placeholder="e.g. Auth/Login" />
+      </div>
+      <div class="form-field">
         <label class="form-label">Collection</label>
         <select class="field-input" v-model="colId">
           <option v-for="c in store.collections" :key="c._id" :value="c._id">{{ c.name }}</option>
@@ -29,10 +33,11 @@ const emit = defineEmits(['close', 'saved'])
 const store = useRelayStore()
 
 const name  = ref(props.request?.name || 'New Request')
+const folder = ref(props.request?.folder || '')
 const colId = ref(props.request?.colMongoId || store.collections[0]?._id || '')
 
 async function save() {
-  const data = { ...props.request, name: name.value, colMongoId: colId.value }
+  const data = { ...props.request, name: name.value, folder: folder.value.trim(), colMongoId: colId.value }
   await store.saveRequest(data)
   emit('saved')
   emit('close')

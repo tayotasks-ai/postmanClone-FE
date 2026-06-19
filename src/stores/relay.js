@@ -143,6 +143,36 @@ export const useRelayStore = defineStore('relay', () => {
     showToast('Request deleted')
   }
 
+  // ── Folders ────────────────────────────────────────────
+  async function addFolder(colId, folderPath) {
+    const col = collections.value.find(c => c._id === colId)
+    if (!col) return
+    if (!col.folders) col.folders = []
+    if (!col.folders.includes(folderPath)) {
+      const newFolders = [...col.folders, folderPath]
+      await api.updateCollection(colId, { folders: newFolders })
+      col.folders = newFolders
+    }
+  }
+
+  async function deleteFolder(colId, folderPath) {
+    const col = collections.value.find(c => c._id === colId)
+    if (!col) return
+    
+    // Cascading delete
+    const prefix = folderPath + '/'
+    const newFolders = (col.folders || []).filter(f => f !== folderPath && !f.startsWith(prefix))
+    const newRequests = (col.requests || []).filter(r => r.folder !== folderPath && !(r.folder && r.folder.startsWith(prefix)))
+    
+    await api.updateCollection(colId, { folders: newFolders, requests: newRequests })
+    col.folders = newFolders
+    col.requests = newRequests
+    if (activeRequest.value?.colMongoId === colId && (!activeRequest.value.id || !col.requests.find(r => r.id === activeRequest.value.id))) {
+      activeRequest.value = null
+    }
+    showToast('Folder deleted')
+  }
+
   // Fetch full collection (with bodies) when user opens it
   async function loadCollectionFull(colId) {
     const full = await api.getCollection(colId)
@@ -187,7 +217,7 @@ export const useRelayStore = defineStore('relay', () => {
     loading, toast, activeRequest, response, promptConfig, confirmConfig,
     showToast, showPrompt, showConfirm, bootstrap,
     createCollection, renameCollection, deleteCollection, toggleCollection, loadCollectionFull,
-    openRequest, newBlankRequest, saveRequest, deleteRequest,
+    openRequest, newBlankRequest, saveRequest, deleteRequest, addFolder, deleteFolder,
     createEnvironment, saveEnvironment, deleteEnvironment,
     interpolate,
   }
